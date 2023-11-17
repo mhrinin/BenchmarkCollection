@@ -4,6 +4,11 @@ using Bogus;
 
 namespace BenchmarkCollection.Benchmarks
 {
+	public class DtoObject
+	{
+		public int Id { get; set; }
+	}
+
 	[ShortRunJob]
 	[MinColumn, MaxColumn, MeanColumn, MedianColumn]
 	[MemoryDiagnoser]
@@ -11,107 +16,42 @@ namespace BenchmarkCollection.Benchmarks
 	public class StaticNonStaticMethods
 	{
 		private StaticNonStaticMethodsContainer _c = new StaticNonStaticMethodsContainer();
-		private List<SignalSource> _signals;
-		private List<SyncedSignal> _syncedSignals;
+		private List<DtoObject> _dtoObjects;
 
 		public StaticNonStaticMethods()
-        {
+		{
+			Randomizer.Seed = new Random(2222222);
 			var parameterStages = new[] { -1, 2, 3, 4, 6, 9 };
 
-			var signalFaker = new Faker<SignalSource>()
-				.RuleFor(u => u.PatientId, f => f.Random.Number(1, 999999))
-				.RuleFor(u => u.ClinicId, f => f.Random.Number(1, 3))
-				.RuleFor(u => u.CaseId, f => f.Random.Number(1, 999999))
-				.RuleFor(u => u.UserId, f => f.Random.Number(1, 9000))
-				.RuleFor(u => u.ParameterStageId, f => f.PickRandom(parameterStages))
-				.RuleFor(u => u.ParameterId, f => f.Random.Number(1, 300))
-				.RuleFor(u => u.ProgramId, f => f.Random.Number(1, 9000))
-				.RuleFor(u => u.CreatedDate, f => f.Date.Between(new DateTime(2022, 10, 1), new DateTime(2023, 11, 1)));
+			var dtoObjectFaker = new Faker<DtoObject>()
+				.RuleFor(u => u.Id, f => f.Random.Number(1, 999999));
 
-			var syncedSignalFaker = new Faker<SyncedSignal>()
-				.RuleFor(u => u.PatientId, f => f.Random.Number(1, 999999))
-				.RuleFor(u => u.ClinicId, f => f.Random.Number(1, 3))
-				.RuleFor(u => u.ParameterId, f => f.Random.Number(1, 300))
-				.RuleFor(u => u.ParameterStageId, f => f.PickRandom(parameterStages))
-				.RuleFor(u => u.LastSyncDate, f => f.Date.Between(new DateTime(2022, 10, 1), new DateTime(2023, 9, 1)));
-
-			_signals = signalFaker.Generate(100000);
-			_syncedSignals = syncedSignalFaker.Generate(100000);
-		}
-
-        [Benchmark]
-		public List<SignalSource> Static()
-		{
-			return StaticNonStaticMethodsContainer.StaticMethod(_signals, _syncedSignals);
+			_dtoObjects = dtoObjectFaker.Generate(5000);
 		}
 
 		[Benchmark]
-		public List<SignalSource> Dynamic()
+		public List<bool> Static()
 		{
-			return _c.DynamicMethod(_signals, _syncedSignals);
+			return _dtoObjects.Select(StaticNonStaticMethodsContainer.StaticMethod).ToList();
+		}
+
+		[Benchmark]
+		public List<bool> Dynamic()
+		{
+			return _dtoObjects.Select(_c.DynamicMethod).ToList();
 		}
 	}
 
 	public class StaticNonStaticMethodsContainer
 	{
-		public static List<SignalSource> StaticMethod(IEnumerable<SignalSource> sources,
-			IEnumerable<SyncedSignal> syncedSignals, int parameterId = 96)
+		public static bool StaticMethod(DtoObject dto)
 		{
-			List<SignalSource> notSyncedList = new();
-
-			foreach (var source in sources)
-			{
-				var sourceParameterStageId = source.ParameterStageId ?? -1;
-
-				var syncedSignal = syncedSignals.FirstOrDefault(x =>
-				x.ParameterId == parameterId
-				&& x.ClinicId == source.ClinicId
-				&& x.PatientId == source.PatientId
-				&& x.ParameterStageId == sourceParameterStageId);
-
-				if (syncedSignal == null)
-				{
-					notSyncedList.Add(source);
-					continue;
-				}
-
-				if (source.CreatedDate > syncedSignal.LastSyncDate)
-				{
-					notSyncedList.Add(source);
-				}
-			}
-
-			return notSyncedList;
+			return dto.Id % 2 == 0;
 		}
 
-		public List<SignalSource> DynamicMethod(IEnumerable<SignalSource> sources,
-			IEnumerable<SyncedSignal> syncedSignals, int parameterId = 96)
+		public bool DynamicMethod(DtoObject dto)
 		{
-			List<SignalSource> notSyncedList = new();
-
-			foreach (var source in sources)
-			{
-				var sourceParameterStageId = source.ParameterStageId ?? -1;
-
-				var syncedSignal = syncedSignals.FirstOrDefault(x =>
-				x.ParameterId == parameterId
-				&& x.ClinicId == source.ClinicId
-				&& x.PatientId == source.PatientId
-				&& x.ParameterStageId == sourceParameterStageId);
-
-				if (syncedSignal == null)
-				{
-					notSyncedList.Add(source);
-					continue;
-				}
-
-				if (source.CreatedDate > syncedSignal.LastSyncDate)
-				{
-					notSyncedList.Add(source);
-				}
-			}
-
-			return notSyncedList;
+			return dto.Id % 2 == 0;
 		}
 	}
 }
